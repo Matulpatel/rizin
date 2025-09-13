@@ -74,7 +74,7 @@ static bool coff_fill_bin_symbol(RzBin *rbin, struct rz_bin_coff_obj *bin, size_
 	ptr->vaddr = UT64_MAX;
 	if (s->n_scnum < bin->hdr.f_nscns + 1 && s->n_scnum > 0) {
 		// first index is 0 that is why -1
-		sc_hdr = rz_vector_index_ptr(bin->scn_hdrs, s->n_scnum - 1);
+		sc_hdr = rz_vector_index_ptr(bin->sections, s->n_scnum - 1);
 		ptr->paddr = sc_hdr->s_scnptr + s->n_value;
 		if (bin->scn_va) {
 			ptr->vaddr = bin->scn_va[s->n_scnum - 1] + s->n_value;
@@ -241,14 +241,14 @@ static RzPVector /*<RzBinMap *>*/ *coff_maps(RzBinFile *bf) {
 	}
 	RzBinObject *o = bf->o;
 	struct rz_bin_coff_obj *obj = o ? o->bin_obj : NULL;
-	if (!obj || !obj->scn_hdrs) {
+	if (!obj || !obj->sections) {
 		return ret;
 	}
 	coff_populate_symbols(bf);
 
 	size_t i = 0;
 	CoffScnHdr *hdr;
-	rz_vector_enumerate (obj->scn_hdrs, hdr, i) {
+	rz_vector_enumerate (obj->sections, hdr, i) {
 		RzBinMap *ptr = RZ_NEW0(RzBinMap);
 		if (!ptr) {
 			return ret;
@@ -294,13 +294,13 @@ static RzPVector /*<RzBinSection *>*/ *coff_sections(RzBinFile *bf) {
 	if (!ret) {
 		return NULL;
 	}
-	if (!obj || !obj->scn_hdrs) {
+	if (!obj || !obj->sections) {
 		return ret;
 	}
 
 	size_t i = 0;
 	CoffScnHdr *scn_hdr;
-	rz_vector_enumerate (obj->scn_hdrs, scn_hdr, i) {
+	rz_vector_enumerate (obj->sections, scn_hdr, i) {
 		RzBinSection *ptr = RZ_NEW0(RzBinSection);
 		if (!ptr) {
 			return ret;

@@ -173,7 +173,7 @@ static bool coff_rebase_sym(struct rz_bin_coff_obj *obj, RzBinAddr *addr, struct
 	if (sym->n_scnum < 1 || sym->n_scnum > obj->hdr.f_nscns) {
 		return false;
 	}
-	CoffScnHdr *scn_hdr = rz_vector_index_ptr(obj->scn_hdrs, sym->n_scnum - 1);
+	CoffScnHdr *scn_hdr = rz_vector_index_ptr(obj->sections, sym->n_scnum - 1);
 	addr->paddr = scn_hdr->s_scnptr + sym->n_value;
 	return true;
 }
@@ -266,8 +266,8 @@ static bool coff_init_scn_hdr(RzBuffer *b, ut64 *offset, struct coff_scn_hdr *sc
 }
 
 static bool bin_coff_init_scn_hdr(RzBuffer *b, struct rz_bin_coff_obj *obj, ut64 *offset) {
-	obj->scn_hdrs = rz_vector_new(sizeof(struct coff_scn_hdr), NULL, NULL);
-	if (!obj->scn_hdrs) {
+	obj->sections = rz_vector_new(sizeof(struct coff_scn_hdr), NULL, NULL);
+	if (!obj->sections) {
 		return false;
 	}
 
@@ -276,7 +276,7 @@ static bool bin_coff_init_scn_hdr(RzBuffer *b, struct rz_bin_coff_obj *obj, ut64
 		if (!coff_init_scn_hdr(b, offset, &scn, obj->big_endian)) {
 			return false;
 		}
-		rz_vector_push(obj->scn_hdrs, &scn);
+		rz_vector_push(obj->sections, &scn);
 	}
 
 	return true;
@@ -322,7 +322,7 @@ static bool bin_coff_init_scn_va(struct rz_bin_coff_obj *obj) {
 	size_t i = 0;
 	ut64 va = 0;
 	CoffScnHdr *scn_hdr;
-	rz_vector_enumerate (obj->scn_hdrs, scn_hdr, i) {
+	rz_vector_enumerate (obj->sections, scn_hdr, i) {
 		obj->scn_va[i] = va;
 		va += scn_hdr->s_size ? scn_hdr->s_size : 16;
 		va = RZ_ROUND(va, 16ULL);
@@ -378,7 +378,7 @@ RZ_API void rz_bin_coff_free(struct rz_bin_coff_obj *obj) {
 	ht_up_free(obj->imp_ht);
 	ht_uu_free(obj->imp_index);
 	free(obj->scn_va);
-	rz_vector_free(obj->scn_hdrs);
+	rz_vector_free(obj->sections);
 	rz_vector_free(obj->symbols);
 	rz_buf_free(obj->buf_patched);
 	free(obj);

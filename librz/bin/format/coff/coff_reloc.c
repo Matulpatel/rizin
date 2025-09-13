@@ -18,7 +18,7 @@ RZ_API ut64 rz_coff_get_reloc_targets_map_base(struct rz_bin_coff_obj *obj) {
 
 	size_t i = 0;
 	CoffScnHdr *hdr;
-	rz_vector_enumerate (obj->scn_hdrs, hdr, i) {
+	rz_vector_enumerate (obj->sections, hdr, i) {
 		ut64 val = obj->scn_va[i] + hdr->s_size;
 		if (val > max) {
 			max = val;
@@ -145,13 +145,13 @@ static ut8 handle_arm64_relocs(struct rz_bin_coff_obj *bin, RzBinReloc *reloc, u
 }
 
 static void relocs_foreach(struct rz_bin_coff_obj *bin, RelocsForeachCb cb, void *user) {
-	if (!bin->scn_hdrs) {
+	if (!bin->sections) {
 		return;
 	}
 
 	size_t i = 0;
 	CoffScnHdr *scn_hdr = NULL;
-	rz_vector_enumerate (bin->scn_hdrs, scn_hdr, i) {
+	rz_vector_enumerate (bin->sections, scn_hdr, i) {
 		if (!scn_hdr->s_nreloc) {
 			continue;
 		}
