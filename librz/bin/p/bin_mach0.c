@@ -325,6 +325,14 @@ static ut64 mach0_size(RzBinFile *bf) {
 	return off + len;
 }
 
+static RZ_OWN char *mach0_section_type_to_string(RzBinFile *bf, ut64 type) {
+	return MACH0_(section_type_to_string)(type);
+}
+
+static RZ_OWN RzList /*<char *>*/ *mach0_section_flag_to_rzlist(RzBinFile *bf, ut64 type) {
+	return MACH0_(section_flag_to_rzlist)(type);
+}
+
 RzBinPlugin rz_bin_plugin_mach0 = {
 	.name = "mach0",
 	.desc = "Mach-O (Mach Object)",
@@ -351,8 +359,8 @@ RzBinPlugin rz_bin_plugin_mach0 = {
 	.relocs = &mach0_relocs,
 	.create = &mach0_create,
 	.classes = &mach0_classes,
-	.section_type_to_string = &MACH0_(section_type_to_string),
-	.section_flag_to_rzlist = &MACH0_(section_flag_to_rzlist)
+	.section_type_to_string = mach0_section_type_to_string,
+	.section_flag_to_rzlist = mach0_section_flag_to_rzlist
 };
 
 #ifndef RZ_PLUGIN_INCORE

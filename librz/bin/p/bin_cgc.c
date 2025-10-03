@@ -99,6 +99,14 @@ static RzBuffer *create(RzBin *bin, const ut8 *code, int codelen, const ut8 *dat
 	return buf;
 }
 
+static RZ_OWN char *elf_section_type_to_string(RzBinFile *bf, ut64 type) {
+	return Elf_(rz_bin_elf_section_type_to_string)(type);
+}
+
+static RZ_OWN RzList /*<char *>*/ *elf_section_flag_to_rzlist(RzBinFile *bf, ut64 type) {
+	return Elf_(rz_bin_elf_section_flag_to_rzlist)(type);
+}
+
 RzBinPlugin rz_bin_plugin_cgc = {
 	.name = "cgc",
 	.desc = "CGC (Cyber Grand Challenge)",
@@ -125,7 +133,7 @@ RzBinPlugin rz_bin_plugin_cgc = {
 	.create = &create,
 	.file_type = elf_get_file_type,
 	.regstate = elf_regstate,
-	.section_type_to_string = &Elf_(rz_bin_elf_section_type_to_string),
-	.section_flag_to_rzlist = &Elf_(rz_bin_elf_section_flag_to_rzlist),
+	.section_type_to_string = elf_section_type_to_string,
+	.section_flag_to_rzlist = elf_section_flag_to_rzlist,
 	.destroy = elf_destroy
 };

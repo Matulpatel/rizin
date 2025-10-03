@@ -278,7 +278,7 @@ static RzPVector /*<RzBinFileHash *>*/ *n3ds_hashes(RzBinFile *bf) {
 	return vec;
 }
 
-static RZ_OWN char *n3ds_section_type_to_string(ut64 type) {
+static RZ_OWN char *n3ds_section_type_to_string(RzBinFile *bf, ut64 type) {
 	switch (type) {
 	case N3DS_TYPE_ARM9:
 		return rz_str_dup(N3DS_DESCR_ARM9);
@@ -293,7 +293,7 @@ static RZ_OWN char *n3ds_section_type_to_string(ut64 type) {
 	}
 }
 
-static RZ_OWN RzList /*<char *>*/ *n3ds_section_flag_to_rzlist(ut64 type) {
+static RZ_OWN RzList /*<char *>*/ *n3ds_section_flag_to_rzlist(RzBinFile *bf, ut64 type) {
 	RzList *list = rz_list_newf(NULL);
 	switch (type) {
 	case N3DS_COPY_MODE_NDMA:

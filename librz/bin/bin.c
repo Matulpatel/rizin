@@ -1355,10 +1355,10 @@ RZ_API bool rz_bin_map_is_data(RZ_NONNULL const RzBinMap *map) {
  * \param type A type field of the RzBinSection (differs between formats)
  * */
 RZ_API RZ_OWN char *rz_bin_section_type_to_string(RzBin *bin, int type) {
-	RzBinFile *a = rz_bin_cur(bin);
-	RzBinPlugin *plugin = rz_bin_file_cur_plugin(a);
+	RzBinFile *bf = rz_bin_cur(bin);
+	RzBinPlugin *plugin = rz_bin_file_cur_plugin(bf);
 	if (plugin && plugin->section_type_to_string) {
-		return plugin->section_type_to_string(type);
+		return plugin->section_type_to_string(bf, type);
 	}
 	return NULL;
 }
@@ -1373,10 +1373,10 @@ RZ_API RZ_OWN char *rz_bin_section_type_to_string(RzBin *bin, int type) {
  * \param flag A flag field of the RzBinSection (differs between formats)
  * */
 RZ_API RZ_OWN RzList /*<char *>*/ *rz_bin_section_flag_to_list(RzBin *bin, ut64 flag) {
-	RzBinFile *a = rz_bin_cur(bin);
-	RzBinPlugin *plugin = rz_bin_file_cur_plugin(a);
+	RzBinFile *bf = rz_bin_cur(bin);
+	RzBinPlugin *plugin = rz_bin_file_cur_plugin(bf);
 	if (plugin && plugin->section_flag_to_rzlist) {
-		return plugin->section_flag_to_rzlist(flag);
+		return plugin->section_flag_to_rzlist(bf, flag);
 	}
 	return NULL;
 }

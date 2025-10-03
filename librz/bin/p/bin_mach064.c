@@ -287,6 +287,14 @@ static RzBinAddr *mach064_binsym(RzBinFile *bf, RzBinSpecialSymbol sym) {
 	return ret;
 }
 
+static RZ_OWN char *mach064_section_type_to_string(RzBinFile *bf, ut64 type) {
+	return MACH0_(section_type_to_string)(type);
+}
+
+static RZ_OWN RzList /*<char *>*/ *mach064_section_flag_to_rzlist(RzBinFile *bf, ut64 type) {
+	return MACH0_(section_flag_to_rzlist)(type);
+}
+
 RzBinPlugin rz_bin_plugin_mach064 = {
 	.name = "mach064",
 	.desc = "Mach-O 64-bit",
@@ -312,8 +320,8 @@ RzBinPlugin rz_bin_plugin_mach064 = {
 	.fields = MACH0_(mach_fields),
 	.create = &mach064_create,
 	.classes = &mach0_classes,
-	.section_type_to_string = MACH0_(section_type_to_string),
-	.section_flag_to_rzlist = MACH0_(section_flag_to_rzlist),
+	.section_type_to_string = mach064_section_type_to_string,
+	.section_flag_to_rzlist = mach064_section_flag_to_rzlist,
 };
 
 #ifndef RZ_PLUGIN_INCORE

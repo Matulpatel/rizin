@@ -157,8 +157,12 @@ rz_bin_sources = [
 
 
   'format/bflt/bflt.c',
-  'format/coff/coff.c',
+  'format/coff/coff_bin.c',
   'format/coff/coff_reloc.c',
+  'format/coff/coff_generic.c',
+  'format/coff/coff_ti.c',
+  'format/coff/coff_ecoff.c',
+  'format/coff/coff_xcoff.c',
   'format/dex/dex.c',
   'format/dmp/dmp64.c',
   'format/elf/elf.c',

@@ -21,6 +21,14 @@ static RzStructuredData *elf64_info_structure(RzBinFile *bf) {
 	return elf64_structure(bin);
 }
 
+static RZ_OWN char *elf64_section_type_to_string(RzBinFile *bf, ut64 type) {
+	return Elf_(rz_bin_elf_section_type_to_string)(type);
+}
+
+static RZ_OWN RzList /*<char *>*/ *elf64_section_flag_to_rzlist(RzBinFile *bf, ut64 type) {
+	return Elf_(rz_bin_elf_section_flag_to_rzlist)(type);
+}
+
 RzBinPlugin rz_bin_plugin_elf64 = {
 	.name = "elf64",
 	.desc = "ELF64 (64-bit Executable and Linkable Format)",
@@ -48,8 +56,8 @@ RzBinPlugin rz_bin_plugin_elf64 = {
 	.get_vaddr = &get_elf_vaddr64,
 	.file_type = &elf64_get_file_type,
 	.regstate = &elf64_regstate,
-	.section_type_to_string = &Elf_(rz_bin_elf_section_type_to_string),
-	.section_flag_to_rzlist = &Elf_(rz_bin_elf_section_flag_to_rzlist),
+	.section_type_to_string = elf64_section_type_to_string,
+	.section_flag_to_rzlist = elf64_section_flag_to_rzlist,
 	.destroy = elf64_destroy,
 };
 

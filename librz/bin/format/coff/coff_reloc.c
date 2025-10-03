@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2021 Florian Märkl <info@florianmaerkl.de>
 // SPDX-License-Identifier: LGPL-3.0-only
 
+#if 0
+
 #include "coff.h"
 #include <rz_util.h>
 #include <rz_util/ht_uu.h>
@@ -280,3 +282,5 @@ RZ_API RZ_BORROW RzBuffer *rz_coff_get_patched_buf(struct rz_bin_coff_obj *bin) 
 	rz_buf_sparse_set_write_mode(bin->buf_patched, RZ_BUF_SPARSE_WRITE_MODE_THROUGH);
 	return bin->buf_patched;
 }
+
+#endif

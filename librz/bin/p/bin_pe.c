@@ -513,6 +513,10 @@ static RzStructuredData *pe_structure(RzBinFile *bf) {
 	return info;
 }
 
+static RZ_OWN RzList /*<char *>*/ *pe_section_flag_to_rzlist(RzBinFile *bf, ut64 type) {
+	return PE_(section_flag_to_rzlist)(type);
+}
+
 RzBinPlugin rz_bin_plugin_pe = {
 	.name = "pe",
 	.desc = "PE (Portable Executable)",
@@ -540,7 +544,7 @@ RzBinPlugin rz_bin_plugin_pe = {
 	.get_vaddr = &pe_get_vaddr,
 	.hashes = &pe_compute_hashes,
 	.resources = &pe_resources,
-	.section_flag_to_rzlist = &PE_(section_flag_to_rzlist),
+	.section_flag_to_rzlist = pe_section_flag_to_rzlist,
 };
 
 #ifndef RZ_PLUGIN_INCORE

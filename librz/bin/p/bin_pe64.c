@@ -633,6 +633,10 @@ static RzPVector /*<RzBinTrycatch *>*/ *pe64_trycatch(RzBinFile *bf) {
 	return tc_vec;
 }
 
+static RZ_OWN RzList /*<char *>*/ *pe64_section_flag_to_rzlist(RzBinFile *bf, ut64 type) {
+	return PE_(section_flag_to_rzlist)(type);
+}
+
 RzBinPlugin rz_bin_plugin_pe64 = {
 	.name = "pe64",
 	.desc = "PE64 (PE32+) binary",
@@ -659,7 +663,7 @@ RzBinPlugin rz_bin_plugin_pe64 = {
 	.trycatch = &pe64_trycatch,
 	.hashes = &pe_compute_hashes,
 	.resources = &pe_resources,
-	.section_flag_to_rzlist = &PE_(section_flag_to_rzlist),
+	.section_flag_to_rzlist = pe64_section_flag_to_rzlist,
 };
 
 #ifndef RZ_PLUGIN_INCORE
