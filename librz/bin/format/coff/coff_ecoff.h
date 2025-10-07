@@ -122,7 +122,7 @@ typedef struct ecoff_aouthdr_alpha64_t {
 	ut64 tsize; /* text size in bytes */
 	ut64 dsize; /* initialized data */
 	ut64 bsize; /* uninitialized data */
-	ut64 entry; /* entry point */
+	ut64 entry; /* virtual address of program entry point */
 	ut64 text_start; /* base address of text */
 	ut64 data_start; /* base address of data */
 	ut64 bss_start; /* base address of bss */
@@ -265,6 +265,7 @@ typedef struct ecoff_t {
 
 bool ecoff_is_valid_buffer(RzBuffer *buffer, bool *big_endian);
 bool ecoff_parse_from_buffer(RzBuffer *buffer, ECoff *ecoff);
+RzPVector /*<RzBinAddr *>*/ *ecoff_get_entries(const ECoff *ecoff);
 RzPVector /*<RzBinSection *>*/ *ecoff_get_sections(const ECoff *ecoff);
 RzBinInfo *ecoff_get_info(const ECoff *ecoff);
 bool ecoff_new_structure(const ECoff *ecoff, RzStructuredData *parent);

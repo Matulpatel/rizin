@@ -13,6 +13,7 @@ typedef struct coff_bin_t CoffBin;
 void coff_bin_free(RZ_NULLABLE CoffBin *coff_bin);
 bool coff_bin_is_coff_binary(RZ_NONNULL RzBuffer *buffer);
 RZ_OWN CoffBin *coff_bin_new_from_buffer(RZ_NONNULL RzBuffer *buffer);
+RZ_OWN RzPVector /*<RzBinAddr *>*/ *coff_bin_get_entries(RZ_NONNULL const CoffBin *coff_bin);
 RZ_OWN RzBinInfo *coff_bin_get_info(RZ_NONNULL const CoffBin *coff_bin);
 RZ_OWN RzPVector /*<RzBinSection *>*/ *coff_bin_get_sections(RZ_NONNULL const CoffBin *coff_bin);
 RZ_OWN RzStructuredData *coff_bin_new_structure(RZ_NONNULL const CoffBin *coff_bin);

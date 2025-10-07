@@ -62,6 +62,25 @@ fail:
 	return NULL;
 }
 
+RZ_OWN RzPVector /*<RzBinAddr *>*/ *coff_bin_get_entries(RZ_NONNULL const CoffBin *coff_bin) {
+	rz_return_val_if_fail(coff_bin, NULL);
+	switch (coff_bin->type) {
+	case TYPE_COFF:
+		return NULL; // coff_bin_get_entries(coff_bin->xxx);
+	case TYPE_ECOFF:
+		return ecoff_get_entries(&coff_bin->ecoff);
+	case TYPE_XCOFF:
+		return NULL; // xcoff_bin_get_entries(coff_bin->xxx);
+	case TYPE_TI:
+		return NULL; // ti_coff_bin_get_entries(coff_bin->xxx);
+	case TYPE_PE:
+		return NULL; // pe_coff_bin_get_entries(coff_bin->xxx);
+	default:
+		rz_warn_if_reached();
+		return NULL;
+	}
+}
+
 RZ_OWN RzBinInfo *coff_bin_get_info(RZ_NONNULL const CoffBin *coff_bin) {
 	rz_return_val_if_fail(coff_bin, NULL);
 	switch (coff_bin->type) {

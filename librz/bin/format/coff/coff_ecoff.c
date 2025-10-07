@@ -423,6 +423,59 @@ static RzBinSection *ecoff_section_to_bin_section(const ECoff *ecoff, const ECof
 	return bsec;
 }
 
+static bool ecoff_find_paddr_from_vaddr(const ECoff *ecoff, const ut64 vaddr, ut64 *paddr) {
+	ut64 vstart = 0;
+	ut64 vend = 0;
+	ut64 pstart = 0;
+	const ECoff_Section *esec;
+	rz_vector_foreach (ecoff->sections, esec) {
+
+#define ECOFF_SECTION_ADDR_INFO(esec, uname) \
+	pstart = esec->uname.s_scnptr; \
+	vend = esec->uname.s_vaddr + esec->uname.s_size; \
+	vstart = esec->uname.s_vaddr
+		if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA) {
+			ECOFF_SECTION_ADDR_INFO(esec, alpha32);
+		} else if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA_BSD) {
+			ECOFF_SECTION_ADDR_INFO(esec, alpha64);
+		} else {
+			ECOFF_SECTION_ADDR_INFO(esec, mips);
+		}
+#undef ECOFF_SECTION_ADDR_INFO
+
+		if (vaddr >= vstart && vaddr <= vend) {
+			*paddr = pstart + (vaddr - vstart);
+			return true;
+		}
+	}
+	return false;
+}
+
+RzPVector /*<RzBinAddr *>*/ *ecoff_get_entries(const ECoff *ecoff) {
+	RzPVector *ret = rz_pvector_new((RzPVectorFree)free);
+	if (!ret) {
+		return NULL;
+	}
+
+	RzBinAddr *baddr = RZ_NEW0(RzBinAddr);
+	if (!baddr) {
+		return NULL;
+	}
+
+	if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA) {
+		baddr->vaddr = ecoff->aouthdr.alpha32.entry;
+	} else if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA_BSD) {
+		baddr->vaddr = ecoff->aouthdr.alpha64.entry;
+	} else {
+		baddr->vaddr = ecoff->aouthdr.mips.entry;
+	}
+	baddr->type = RZ_BIN_SPECIAL_SYMBOL_ENTRY;
+	ecoff_find_paddr_from_vaddr(ecoff, baddr->vaddr, &baddr->paddr);
+
+	rz_pvector_push(ret, baddr);
+	return ret;
+}
+
 RzPVector /*<RzBinSection *>*/ *ecoff_get_sections(const ECoff *ecoff) {
 	RzPVector *ret = rz_pvector_new((RzPVectorFree)rz_bin_section_free);
 	if (!ret) {
@@ -465,7 +518,7 @@ RzBinInfo *ecoff_get_info(const ECoff *ecoff) {
 	}
 
 	ret->rclass = rz_str_dup("ecoff");
-	ret->bclass = rz_str_dup("ecoff");
+	ret->bclass = rz_str_dup("coff");
 	ret->type = rz_str_dup("ECOFF (Executable file)");
 	ret->os = rz_str_dup("any");
 	ret->subsystem = rz_str_dup("any");

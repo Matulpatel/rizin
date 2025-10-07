@@ -30,6 +30,14 @@ static void coff_destroy(RzBinFile *bf) {
 }
 
 static RzPVector /*<RzBinAddr *>*/ *coff_entries(RzBinFile *bf) {
+	const CoffBin *coff_bin = (CoffBin *)bf->o->bin_obj;
+	if (!coff_bin) {
+		return NULL;
+	}
+	return coff_bin_get_entries(coff_bin);
+}
+
+static RzBinAddr *coff_binsym(RzBinFile *bf, RzBinSpecialSymbol num) {
 	return NULL;
 }
 
@@ -38,7 +46,7 @@ static RzPVector /*<RzBinVirtualFile *>*/ *coff_virtual_files(RzBinFile *bf) {
 }
 
 static RzPVector /*<RzBinMap *>*/ *coff_maps(RzBinFile *bf) {
-	return NULL;
+	return rz_bin_maps_of_file_sections(bf);
 }
 
 static RzPVector /*<RzBinSection *>*/ *coff_sections(RzBinFile *bf) {
@@ -100,6 +108,7 @@ RzBinPlugin rz_bin_plugin_coff = {
 	.destroy = &coff_destroy,
 	.check_buffer = &coff_check_buffer,
 	.entries = &coff_entries,
+	.binsym = &coff_binsym,
 	.virtual_files = &coff_virtual_files,
 	.maps = &coff_maps,
 	.sections = &coff_sections,
