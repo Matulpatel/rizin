@@ -83,6 +83,67 @@
 #define ECOFF_SECTION_EXT_TYPE_LITA      0x04000000 // Address literals
 #define ECOFF_SECTION_EXT_TYPE_LIT8      0x08000000 // 8-byte literals
 
+// ECoff Symbols Special Section Number
+// Normally these must be between 0x0001-0x7fff (077777o) and defines
+// which is the section number where symbol is defined.
+#define ECOFF_SYMBOL_SECT_NUM_DEBUG -2 // Special symbolic debugging symbol
+#define ECOFF_SYMBOL_SECT_NUM_ABS   -1 // Absolute symbol
+#define ECOFF_SYMBOL_SECT_NUM_UNDEF 0 // Undefined external symbol
+
+// ECoff Symbols Storage Class
+#define ECOFF_SYMBOL_SCLASS_EFCN    -1 // physical end of a function
+#define ECOFF_SYMBOL_SCLASS_NULL    0 // -
+#define ECOFF_SYMBOL_SCLASS_AUTO    1 // automatic variable
+#define ECOFF_SYMBOL_SCLASS_EXT     2 // external symbol
+#define ECOFF_SYMBOL_SCLASS_STAT    3 // static
+#define ECOFF_SYMBOL_SCLASS_REG     4 // register variable
+#define ECOFF_SYMBOL_SCLASS_EXTDEF  5 // external definition
+#define ECOFF_SYMBOL_SCLASS_LABEL   6 // label
+#define ECOFF_SYMBOL_SCLASS_ULABEL  7 // undefined label
+#define ECOFF_SYMBOL_SCLASS_MOS     8 // member of structure
+#define ECOFF_SYMBOL_SCLASS_ARG     9 // function argument
+#define ECOFF_SYMBOL_SCLASS_STRTAG  10 // structure tag
+#define ECOFF_SYMBOL_SCLASS_MOU     11 // member of union
+#define ECOFF_SYMBOL_SCLASS_UNTAG   12 // union tag
+#define ECOFF_SYMBOL_SCLASS_TPDEF   13 // type definition
+#define ECOFF_SYMBOL_SCLASS_USTATIC 14 // uninitialized static
+#define ECOFF_SYMBOL_SCLASS_ENTAG   15 // enumeration ~
+#define ECOFF_SYMBOL_SCLASS_MOE     16 // member of enumeration
+#define ECOFF_SYMBOL_SCLASS_REGPARM 17 // register parameter
+#define ECOFF_SYMBOL_SCLASS_FIELD   18 // bit field
+#define ECOFF_SYMBOL_SCLASS_BLOCK   100 // beginning and end of block
+#define ECOFF_SYMBOL_SCLASS_FCN     101 // beginning and end of function
+#define ECOFF_SYMBOL_SCLASS_EOS     102 // end of structure
+#define ECOFF_SYMBOL_SCLASS_FILE    103 // filename
+#define ECOFF_SYMBOL_SCLASS_LINE    104 // used only by utility programs
+#define ECOFF_SYMBOL_SCLASS_ALIAS   105 // duplicated tag
+#define ECOFF_SYMBOL_SCLASS_HIDDEN  106 // like static, used to avoid name conflicts
+
+// ECoff Symbol Type (basic type Bits 0-3 of the type)
+#define ECOFF_SYMBOL_BASE_TYPE_MASK   0x000F
+#define ECOFF_SYMBOL_BASE_TYPE_NULL   0 // Type not assigned
+#define ECOFF_SYMBOL_BASE_TYPE_CHAR   2 // Character
+#define ECOFF_SYMBOL_BASE_TYPE_SHORT  3 // Short integer
+#define ECOFF_SYMBOL_BASE_TYPE_INT    4 // Integer
+#define ECOFF_SYMBOL_BASE_TYPE_LONG   5 // Long integer
+#define ECOFF_SYMBOL_BASE_TYPE_FLOAT  6 // Floating point
+#define ECOFF_SYMBOL_BASE_TYPE_DOUBLE 7 // Double word
+#define ECOFF_SYMBOL_BASE_TYPE_STRUCT 8 // Structure
+#define ECOFF_SYMBOL_BASE_TYPE_UNION  9 // Union
+#define ECOFF_SYMBOL_BASE_TYPE_ENUM   10 // Enumeration
+#define ECOFF_SYMBOL_BASE_TYPE_MOE    11 // Member of an enumeration
+#define ECOFF_SYMBOL_BASE_TYPE_UCHAR  12 // Unsigned character
+#define ECOFF_SYMBOL_BASE_TYPE_USHORT 13 // Unsigned short integer
+#define ECOFF_SYMBOL_BASE_TYPE_UINT   14 // Unsigned integer
+#define ECOFF_SYMBOL_BASE_TYPE_ULONG  15 // Unsigned long integer
+
+// ECoff Symbol Type (derived type Bits 4-15)
+#define ECOFF_SYMBOL_DERIVED_TYPE_MASK 0xFFF0
+#define ECOFF_SYMBOL_DERIVED_TYPE_NON  0 // No derived type
+#define ECOFF_SYMBOL_DERIVED_TYPE_PTR  1 // Pointer
+#define ECOFF_SYMBOL_DERIVED_TYPE_FCN  2 // Function
+#define ECOFF_SYMBOL_DERIVED_TYPE_ARY  3 // Array
+
 // ECoff relocations
 #define ECOFF_RELOC_NONE   0
 #define ECOFF_RELOC_TEXT   1
@@ -216,16 +277,19 @@ typedef struct ecoff_section_t {
 		ECoff_Section_Alpha32 alpha32;
 		ECoff_Section_Mips mips;
 	};
-	char *name;
+	/* not part of the actual section object */
+	char *resolved_name;
 } ECoff_Section;
 
 typedef struct ecoff_symbol_t {
 	char e_name[8]; /* symbol entry name or an index to a name */
 	ut32 e_value; /* symbol value, storage class dependent */
-	ut16 e_scnum; /* section number of the symbol */
+	st16 e_scnum; /* section number of the symbol */
 	ut16 e_type; /* basic and derived type specification  */
-	ut8 e_sclass; /* storage class of the symbol */
+	st8 e_sclass; /* storage class of the symbol */
 	ut8 e_numaux; /* number of auxiliary entries */
+	/* not part of the actual symbol object */
+	char *resolved_name;
 } ECoff_Symbol;
 
 #define COFF_SYMBOL_SIZE 18
@@ -267,6 +331,7 @@ bool ecoff_is_valid_buffer(RzBuffer *buffer, bool *big_endian);
 bool ecoff_parse_from_buffer(RzBuffer *buffer, ECoff *ecoff);
 RzPVector /*<RzBinAddr *>*/ *ecoff_get_entries(const ECoff *ecoff);
 RzPVector /*<RzBinSection *>*/ *ecoff_get_sections(const ECoff *ecoff);
+RzPVector /*<RzBinSymbol *>*/ *ecoff_get_symbols(const ECoff *ecoff);
 RzBinInfo *ecoff_get_info(const ECoff *ecoff);
 bool ecoff_new_structure(const ECoff *ecoff, RzStructuredData *parent);
 RzList /*<char *>*/ *ecoff_resolve_section_flags(ut64 s_flags);

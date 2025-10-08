@@ -120,6 +120,26 @@ RZ_OWN RzPVector /*<RzBinSection *>*/ *coff_bin_get_sections(RZ_NONNULL const Co
 	}
 }
 
+RZ_OWN RzPVector /*<RzBinSymbol *>*/ *coff_bin_get_symbols(RZ_NONNULL const CoffBin *coff_bin) {
+	rz_return_val_if_fail(coff_bin, NULL);
+
+	switch (coff_bin->type) {
+	case TYPE_COFF:
+		return NULL; // coff_bin_get_symbols(coff_bin->xxx);
+	case TYPE_ECOFF:
+		return ecoff_get_symbols(&coff_bin->ecoff);
+	case TYPE_XCOFF:
+		return NULL; // xcoff_bin_get_symbols(coff_bin->xxx);
+	case TYPE_TI:
+		return NULL; // ti_coff_bin_get_symbols(coff_bin->xxx);
+	case TYPE_PE:
+		return NULL; // pe_coff_bin_get_symbols(coff_bin->xxx);
+	default:
+		rz_warn_if_reached();
+		return NULL;
+	}
+}
+
 RZ_OWN RzStructuredData *coff_bin_new_structure(RZ_NONNULL const CoffBin *coff_bin) {
 	rz_return_val_if_fail(coff_bin, NULL);
 

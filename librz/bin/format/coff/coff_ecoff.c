@@ -75,7 +75,7 @@ static bool ecoff_init_aouthdr_alpha32(RzBuffer *b, ut64 *offset, ECoff *ecoff) 
 	ECoff_AOutHdr_Alpha32 *alpha = &ecoff->aouthdr.alpha32;
 	const bool big_endian = ecoff->big_endian;
 	return rz_buf_read_ble16_offset(b, offset, &alpha->magic, big_endian) &&
-		rz_buf_read_ble16_offset(b, offset, (ut16 *)alpha->vstamp, big_endian) &&
+		rz_buf_read_offset(b, offset, alpha->vstamp, sizeof(alpha->vstamp)) &&
 		rz_buf_read_ble16_offset(b, offset, &alpha->bldrev, big_endian) &&
 		rz_buf_read_ble16_offset(b, offset, &alpha->padding, big_endian) &&
 		rz_buf_read_ble32_offset(b, offset, &alpha->tsize, big_endian) &&
@@ -94,7 +94,7 @@ static bool ecoff_init_aouthdr_alpha64(RzBuffer *b, ut64 *offset, ECoff *ecoff) 
 	ECoff_AOutHdr_Alpha64 *alpha = &ecoff->aouthdr.alpha64;
 	const bool big_endian = ecoff->big_endian;
 	return rz_buf_read_ble16_offset(b, offset, &alpha->magic, big_endian) &&
-		rz_buf_read_ble16_offset(b, offset, (ut16 *)alpha->vstamp, big_endian) &&
+		rz_buf_read_offset(b, offset, alpha->vstamp, sizeof(alpha->vstamp)) &&
 		rz_buf_read_ble16_offset(b, offset, &alpha->bldrev, big_endian) &&
 		rz_buf_read_ble16_offset(b, offset, &alpha->padding, big_endian) &&
 		rz_buf_read_ble64_offset(b, offset, &alpha->tsize, big_endian) &&
@@ -113,7 +113,7 @@ static bool ecoff_init_aouthdr_mips(RzBuffer *b, ut64 *offset, ECoff *ecoff) {
 	ECoff_AOutHdr_Mips *mips = &ecoff->aouthdr.mips;
 	const bool big_endian = ecoff->big_endian;
 	return rz_buf_read_ble16_offset(b, offset, &mips->magic, big_endian) &&
-		rz_buf_read_ble16_offset(b, offset, (ut16 *)mips->vstamp, big_endian) &&
+		rz_buf_read_offset(b, offset, mips->vstamp, sizeof(mips->vstamp)) &&
 		rz_buf_read_ble32_offset(b, offset, &mips->tsize, big_endian) &&
 		rz_buf_read_ble32_offset(b, offset, &mips->dsize, big_endian) &&
 		rz_buf_read_ble32_offset(b, offset, &mips->bsize, big_endian) &&
@@ -215,8 +215,13 @@ static char *ecoff_resolve_name(RzBuffer *b, const ECoff *ecoff, const char name
 	return rz_str_dup((const char *)resolved);
 }
 
+static void ecoff_section_fini(void *element, void *) {
+	ECoff_Section *section = element;
+	free(section->resolved_name);
+}
+
 static bool ecoff_init_sections(RzBuffer *b, ut64 *offset, ECoff *ecoff) {
-	ecoff->sections = rz_vector_new(sizeof(ECoff_Section), NULL, NULL);
+	ecoff->sections = rz_vector_new(sizeof(ECoff_Section), ecoff_section_fini, NULL);
 	if (!ecoff->sections) {
 		return false;
 	}
@@ -229,14 +234,56 @@ static bool ecoff_init_sections(RzBuffer *b, ut64 *offset, ECoff *ecoff) {
 			return false;
 		}
 		if (f_magic == ECOFF_MACHINE_ALPHA) {
-			section.name = ecoff_resolve_name(b, ecoff, section.alpha32.s_name);
+			section.resolved_name = ecoff_resolve_name(b, ecoff, section.alpha32.s_name);
 		} else if (f_magic == ECOFF_MACHINE_ALPHA_BSD) {
-			section.name = ecoff_resolve_name(b, ecoff, section.alpha64.s_name);
+			section.resolved_name = ecoff_resolve_name(b, ecoff, section.alpha64.s_name);
 		} else {
-			section.name = ecoff_resolve_name(b, ecoff, section.mips.s_name);
+			section.resolved_name = ecoff_resolve_name(b, ecoff, section.mips.s_name);
 		}
 		rz_vector_push(ecoff->sections, &section);
 	}
+	return true;
+}
+
+static bool ecoff_init_symbol(RzBuffer *b, ut64 *offset, ECoff_Symbol *symbol, bool big_endian) {
+	return rz_buf_read_offset(b, offset, (ut8 *)symbol->e_name, sizeof(symbol->e_name)) &&
+		rz_buf_read_ble32_offset(b, offset, &symbol->e_value, big_endian) &&
+		rz_buf_read_ble16_offset(b, offset, (ut16 *)&symbol->e_scnum, big_endian) &&
+		rz_buf_read_ble16_offset(b, offset, &symbol->e_type, big_endian) &&
+		rz_buf_read_ble8_offset(b, offset, (ut8 *)&symbol->e_sclass, big_endian) &&
+		rz_buf_read_ble8_offset(b, offset, &symbol->e_numaux, big_endian);
+}
+
+static void ecoff_symbol_fini(void *element, void *) {
+	ECoff_Symbol *symbol = element;
+	free(symbol->resolved_name);
+}
+
+static bool ecoff_init_symbols(RzBuffer *b, ECoff *ecoff) {
+	if (ecoff->header.f_symptr < 0) {
+		// invalid
+		return false;
+	}
+
+	ecoff->symbols = rz_vector_new(sizeof(ECoff_Symbol), ecoff_symbol_fini, NULL);
+	if (!ecoff->symbols) {
+		return false;
+	} else if (!ecoff->header.f_symptr) {
+		// there are no symbols
+		return true;
+	}
+
+	ut64 offset = ecoff->header.f_symptr;
+	const size_t count = ecoff->header.f_nsyms;
+	for (size_t i = 0; i < count; ++i) {
+		ECoff_Symbol symbol = { 0 };
+		if (!ecoff_init_symbol(b, &offset, &symbol, ecoff->big_endian)) {
+			return false;
+		}
+		symbol.resolved_name = ecoff_resolve_name(b, ecoff, symbol.e_name);
+		rz_vector_push(ecoff->symbols, &symbol);
+	}
+
 	return true;
 }
 
@@ -251,7 +298,11 @@ bool ecoff_parse_from_buffer(RzBuffer *buffer, ECoff *ecoff) {
 		return false;
 	}
 	if (!ecoff_init_sections(buffer, &offset, ecoff)) {
-		RZ_LOG_ERROR("ecoff: failed to read ecoff sections\n");
+		RZ_LOG_ERROR("ecoff: failed to read ecoff section table\n");
+		return false;
+	}
+	if (!ecoff_init_symbols(buffer, ecoff)) {
+		RZ_LOG_ERROR("ecoff: failed to read ecoff symbol table\n");
 		return false;
 	}
 
@@ -392,37 +443,6 @@ static bool ecoff_is_data_section(const ut32 s_flags) {
 		extflag == ECOFF_SECTION_EXT_TYPE_PDATA;
 }
 
-static RzBinSection *ecoff_section_to_bin_section(const ECoff *ecoff, const ECoff_Section *esec) {
-	RzBinSection *bsec = RZ_NEW0(RzBinSection);
-	if (!bsec) {
-		return NULL;
-	}
-
-#define ECOFF_BIN_SECTION_SET(bsec, esec, uname) \
-	bsec->size = esec->uname.s_size; \
-	bsec->vsize = esec->uname.s_size; \
-	bsec->paddr = esec->uname.s_scnptr; \
-	bsec->vaddr = esec->uname.s_vaddr; \
-	bsec->flags = esec->uname.s_flags
-
-	if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA) {
-		ECOFF_BIN_SECTION_SET(bsec, esec, alpha32);
-	} else if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA_BSD) {
-		ECOFF_BIN_SECTION_SET(bsec, esec, alpha64);
-	} else {
-		ECOFF_BIN_SECTION_SET(bsec, esec, mips);
-	}
-
-#undef ECOFF_BIN_SECTION_SET
-
-	bsec->perm = ecoff_section_flags_to_perms(bsec->flags);
-	bsec->name = rz_str_dup(esec->name);
-	if (ecoff_is_data_section(bsec->flags)) {
-		bsec->is_data = true;
-	}
-	return bsec;
-}
-
 static bool ecoff_find_paddr_from_vaddr(const ECoff *ecoff, const ut64 vaddr, ut64 *paddr) {
 	ut64 vstart = 0;
 	ut64 vend = 0;
@@ -451,9 +471,18 @@ static bool ecoff_find_paddr_from_vaddr(const ECoff *ecoff, const ut64 vaddr, ut
 	return false;
 }
 
-RzPVector /*<RzBinAddr *>*/ *ecoff_get_entries(const ECoff *ecoff) {
-	RzPVector *ret = rz_pvector_new((RzPVectorFree)free);
-	if (!ret) {
+static RzBinAddr *ecoff_get_entrypoint(const ECoff *ecoff) {
+	ut64 vaddr = 0;
+	if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA) {
+		vaddr = ecoff->aouthdr.alpha32.entry;
+	} else if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA_BSD) {
+		vaddr = ecoff->aouthdr.alpha64.entry;
+	} else {
+		vaddr = ecoff->aouthdr.mips.entry;
+	}
+
+	if (!vaddr) {
+		// entry is invalid.
 		return NULL;
 	}
 
@@ -462,18 +491,89 @@ RzPVector /*<RzBinAddr *>*/ *ecoff_get_entries(const ECoff *ecoff) {
 		return NULL;
 	}
 
-	if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA) {
-		baddr->vaddr = ecoff->aouthdr.alpha32.entry;
-	} else if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA_BSD) {
-		baddr->vaddr = ecoff->aouthdr.alpha64.entry;
-	} else {
-		baddr->vaddr = ecoff->aouthdr.mips.entry;
-	}
-	baddr->type = RZ_BIN_SPECIAL_SYMBOL_ENTRY;
+	baddr->type = RZ_BIN_ENTRY_TYPE_INIT;
+	baddr->paddr = UT64_MAX;
+	baddr->vaddr = vaddr;
 	ecoff_find_paddr_from_vaddr(ecoff, baddr->vaddr, &baddr->paddr);
+	return baddr;
+}
 
-	rz_pvector_push(ret, baddr);
+static RzBinAddr *ecoff_get_main(const ECoff *ecoff) {
+	ut64 vaddr = 0;
+
+	const ECoff_Symbol *esym;
+	rz_vector_foreach (ecoff->symbols, esym) {
+		if (esym->resolved_name && RZ_STR_EQ(esym->resolved_name, "main")) {
+			vaddr = esym->e_value;
+			break;
+		}
+	}
+
+	if (!vaddr) {
+		// main pointer is invalid.
+		return NULL;
+	}
+
+	RzBinAddr *baddr = RZ_NEW0(RzBinAddr);
+	if (!baddr) {
+		return NULL;
+	}
+
+	baddr->type = RZ_BIN_ENTRY_TYPE_MAIN;
+	baddr->paddr = UT64_MAX;
+	baddr->vaddr = vaddr;
+	ecoff_find_paddr_from_vaddr(ecoff, baddr->vaddr, &baddr->paddr);
+	return baddr;
+}
+
+RzPVector /*<RzBinAddr *>*/ *ecoff_get_entries(const ECoff *ecoff) {
+	RzPVector *ret = rz_pvector_new((RzPVectorFree)free);
+	if (!ret) {
+		return NULL;
+	}
+
+	RzBinAddr *baddr = ecoff_get_entrypoint(ecoff);
+	if (baddr) {
+		rz_pvector_push(ret, baddr);
+	}
+
+	baddr = ecoff_get_main(ecoff);
+	if (baddr) {
+		rz_pvector_push(ret, baddr);
+	}
+
 	return ret;
+}
+
+static RzBinSection *ecoff_section_to_bin_section(const ECoff *ecoff, const ECoff_Section *esec) {
+	RzBinSection *bsec = RZ_NEW0(RzBinSection);
+	if (!bsec) {
+		return NULL;
+	}
+
+#define ECOFF_BIN_SECTION_SET(bsec, esec, uname) \
+	bsec->size = esec->uname.s_size; \
+	bsec->vsize = esec->uname.s_size; \
+	bsec->paddr = esec->uname.s_scnptr; \
+	bsec->vaddr = esec->uname.s_vaddr; \
+	bsec->flags = esec->uname.s_flags
+
+	if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA) {
+		ECOFF_BIN_SECTION_SET(bsec, esec, alpha32);
+	} else if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA_BSD) {
+		ECOFF_BIN_SECTION_SET(bsec, esec, alpha64);
+	} else {
+		ECOFF_BIN_SECTION_SET(bsec, esec, mips);
+	}
+
+#undef ECOFF_BIN_SECTION_SET
+
+	bsec->perm = ecoff_section_flags_to_perms(bsec->flags);
+	bsec->name = rz_str_dup(esec->resolved_name);
+	if (ecoff_is_data_section(bsec->flags)) {
+		bsec->is_data = true;
+	}
+	return bsec;
 }
 
 RzPVector /*<RzBinSection *>*/ *ecoff_get_sections(const ECoff *ecoff) {
@@ -493,10 +593,144 @@ RzPVector /*<RzBinSection *>*/ *ecoff_get_sections(const ECoff *ecoff) {
 	return ret;
 }
 
+static bool ecoff_symbol_is_function(const ECoff_Symbol *esym) {
+	ut16 derived_type = (esym->e_type & ECOFF_SYMBOL_DERIVED_TYPE_MASK) >> 4;
+	if (!derived_type) {
+		return true;
+	}
+	return derived_type == ECOFF_SYMBOL_DERIVED_TYPE_FCN;
+}
+
+static bool ecoff_symbol_is_imported(const ECoff_Symbol *esym) {
+	return esym->e_scnum == ECOFF_SYMBOL_SECT_NUM_UNDEF &&
+		esym->e_sclass == ECOFF_SYMBOL_SCLASS_EFCN;
+}
+
+static bool ecoff_symbol_has_vaddr(const ECoff_Symbol *esym) {
+	ut16 derived_type = (esym->e_type & ECOFF_SYMBOL_DERIVED_TYPE_MASK) >> 4;
+	if (!derived_type) {
+		return true;
+	}
+	return derived_type == ECOFF_SYMBOL_DERIVED_TYPE_PTR ||
+		derived_type == ECOFF_SYMBOL_DERIVED_TYPE_FCN;
+}
+
+static ut32 ecoff_symbol_type_to_size(const ECoff_Symbol *esym) {
+	switch (esym->e_type & ECOFF_SYMBOL_BASE_TYPE_MASK) {
+	default: return 0;
+	case ECOFF_SYMBOL_BASE_TYPE_CHAR: return 1;
+	case ECOFF_SYMBOL_BASE_TYPE_SHORT: return 2;
+	case ECOFF_SYMBOL_BASE_TYPE_INT: return 4;
+	case ECOFF_SYMBOL_BASE_TYPE_LONG: return 8;
+	case ECOFF_SYMBOL_BASE_TYPE_FLOAT: return 4;
+	case ECOFF_SYMBOL_BASE_TYPE_DOUBLE: return 8;
+	case ECOFF_SYMBOL_BASE_TYPE_ENUM: return 4;
+	case ECOFF_SYMBOL_BASE_TYPE_UCHAR: return 1;
+	case ECOFF_SYMBOL_BASE_TYPE_USHORT: return 2;
+	case ECOFF_SYMBOL_BASE_TYPE_UINT: return 4;
+	case ECOFF_SYMBOL_BASE_TYPE_ULONG: return 8;
+	}
+}
+
+static const char *ecoff_symbol_type_to_bin_symbol_type(const ECoff_Symbol *esym) {
+	ut16 derived_type = (esym->e_type & ECOFF_SYMBOL_DERIVED_TYPE_MASK) >> 4;
+	switch (derived_type) {
+	default: return NULL;
+	case ECOFF_SYMBOL_DERIVED_TYPE_PTR: return RZ_BIN_TYPE_OBJECT_STR;
+	case ECOFF_SYMBOL_DERIVED_TYPE_FCN: return RZ_BIN_TYPE_FUNC_STR;
+	case ECOFF_SYMBOL_DERIVED_TYPE_ARY: return RZ_BIN_TYPE_STATIC_STR;
+	}
+}
+
+static RzBinSymbol *ecoff_symbol_to_bin_symbol(const ECoff *ecoff, const ECoff_Symbol *esym) {
+	RzBinSymbol *bsym = RZ_NEW0(RzBinSymbol);
+	if (!bsym) {
+		return NULL;
+	}
+
+	bsym->type = ecoff_symbol_type_to_bin_symbol_type(esym);
+	bsym->size = ecoff_symbol_type_to_size(esym);
+	bsym->name = rz_str_dup(esym->resolved_name);
+	bsym->forwarder = "NONE";
+	bsym->is_imported = ecoff_symbol_is_imported(esym);
+	if (bsym->is_imported) {
+		bsym->bind = RZ_BIN_BIND_IMPORT_STR;
+	} else if (ecoff_symbol_is_function(esym)) {
+		bsym->bind = RZ_BIN_BIND_GLOBAL_STR;
+	} else {
+		bsym->bind = RZ_BIN_BIND_LOCAL_STR;
+	}
+	bsym->paddr = UT64_MAX;
+	bsym->vaddr = UT64_MAX;
+	if (esym->e_value && ecoff_symbol_has_vaddr(esym)) {
+		bsym->vaddr = esym->e_value;
+		ecoff_find_paddr_from_vaddr(ecoff, bsym->vaddr, &bsym->paddr);
+	}
+	return bsym;
+}
+
+// this is a special symbol that is used for analysis.
+// the analysis step will use `loc._gp` to know how to
+// resolve values, pointers and functions.
+static RzBinSymbol *ecoff_gp_to_bin_symbol(const ECoff *ecoff) {
+	ut64 vaddr = 0;
+	if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA) {
+		vaddr = ecoff->aouthdr.alpha32.gp_value;
+	} else if (ecoff->header.f_magic == ECOFF_MACHINE_ALPHA_BSD) {
+		vaddr = ecoff->aouthdr.alpha64.gp_value;
+	} else {
+		vaddr = ecoff->aouthdr.mips.gp_value;
+	}
+
+	if (!vaddr) {
+		return NULL;
+	}
+
+	RzBinSymbol *bsym = RZ_NEW0(RzBinSymbol);
+	if (!bsym) {
+		return NULL;
+	}
+
+	bsym->name = rz_str_dup("_gp");
+	bsym->forwarder = "NONE";
+	bsym->bind = RZ_BIN_BIND_LOCAL_STR;
+	bsym->type = RZ_BIN_TYPE_NOTYPE_STR;
+	bsym->paddr = UT64_MAX;
+	bsym->vaddr = vaddr;
+	ecoff_find_paddr_from_vaddr(ecoff, bsym->vaddr, &bsym->paddr);
+
+	return bsym;
+}
+
+RzPVector /*<RzBinSymbol *>*/ *ecoff_get_symbols(const ECoff *ecoff) {
+	RzPVector *ret = rz_pvector_new((RzPVectorFree)rz_bin_symbol_free);
+	if (!ret) {
+		return NULL;
+	}
+
+	RzBinSymbol *bsym = ecoff_gp_to_bin_symbol(ecoff);
+	if (bsym) {
+		// only push the _gp symbol if valid
+		rz_pvector_push(ret, bsym);
+	}
+
+	const ECoff_Symbol *esym;
+	rz_vector_foreach (ecoff->symbols, esym) {
+		bsym = ecoff_symbol_to_bin_symbol(ecoff, esym);
+		if (!bsym) {
+			return ret;
+		}
+		rz_pvector_push(ret, bsym);
+	}
+
+	return ret;
+}
+
 static ut64 ecoff_to_debug_info(const ECoff *ecoff) {
 	ut64 dbg_info = 0;
 	const ut16 f_flags = ecoff->header.f_flags;
-	if (f_flags & ECOFF_F_FLAGS_IS_STRIPPED) {
+	if (f_flags & ECOFF_F_FLAGS_IS_STRIPPED ||
+		!ecoff->header.f_symptr) {
 		return RZ_BIN_DBG_STRIPPED;
 	}
 	if (!(f_flags & ECOFF_F_FLAGS_RELFLG)) {
@@ -682,7 +916,7 @@ static bool ecoff_header_to_structure(const ECoff *ecoff, RzStructuredData *pare
 	return rz_structured_data_map_add_string(filehdr, "f_magic", f_magic) &&
 		rz_structured_data_map_add_unsigned(filehdr, "f_nscns", ecoff->header.f_nscns, false) &&
 		ecoff_header_timedate_to_string(ecoff, filehdr) &&
-		rz_structured_data_map_add_signed(filehdr, "f_symptr", ecoff->header.f_symptr) &&
+		rz_structured_data_map_add_unsigned(filehdr, "f_symptr", ecoff->header.f_symptr, true) &&
 		rz_structured_data_map_add_signed(filehdr, "f_nsyms", ecoff->header.f_nsyms) &&
 		rz_structured_data_map_add_unsigned(filehdr, "f_opthdr", ecoff->header.f_opthdr, true) &&
 		ecoff_header_flags_to_structure(ecoff, filehdr);
@@ -763,7 +997,7 @@ static bool ecoff_aouthdr_mips_to_structure(const ECoff *ecoff, RzStructuredData
 	char vstamp[16] = { 0 };
 	const ECoff_AOutHdr_Mips *mips = &ecoff->aouthdr.mips;
 	const char *magic = ecoff_aouthdr_magic_to_string(mips->magic);
-	rz_strf(vstamp, "v%u.%u", mips->vstamp[1], mips->vstamp[0]);
+	rz_strf(vstamp, "v%u.%u", mips->vstamp[0], mips->vstamp[1]);
 
 	bool res = rz_structured_data_map_add_string(parent, "magic", magic) &&
 		rz_structured_data_map_add_string(parent, "vstamp", vstamp) &&
@@ -916,7 +1150,7 @@ static bool ecoff_section_mips_to_structure(const ECoff_Section *section, RzStru
 }
 
 static bool ecoff_section_to_structure(const ut16 f_magic, const ECoff_Section *section, RzStructuredData *parent) {
-	if (!rz_structured_data_map_add_string(parent, "s_name", section->name)) {
+	if (!rz_structured_data_map_add_string(parent, "s_name", section->resolved_name)) {
 		return false;
 	}
 	if (f_magic == ECOFF_MACHINE_ALPHA) {
@@ -950,10 +1184,123 @@ static bool ecoff_sections_to_structure(const ECoff *ecoff, RzStructuredData *pa
 	return true;
 }
 
+static const char *ecoff_symbol_sclass(const ECoff_Symbol *symbol) {
+	switch (symbol->e_sclass) {
+	case ECOFF_SYMBOL_SCLASS_EFCN:
+		return "C_EFCN";
+	case ECOFF_SYMBOL_SCLASS_NULL:
+		return "C_NULL";
+	case ECOFF_SYMBOL_SCLASS_AUTO:
+		return "C_AUTO";
+	case ECOFF_SYMBOL_SCLASS_EXT:
+		return "C_EXT";
+	case ECOFF_SYMBOL_SCLASS_STAT:
+		return "C_STAT";
+	case ECOFF_SYMBOL_SCLASS_REG:
+		return "C_REG";
+	case ECOFF_SYMBOL_SCLASS_EXTDEF:
+		return "C_EXTDEF";
+	case ECOFF_SYMBOL_SCLASS_LABEL:
+		return "C_LABEL";
+	case ECOFF_SYMBOL_SCLASS_ULABEL:
+		return "C_ULABEL";
+	case ECOFF_SYMBOL_SCLASS_MOS:
+		return "C_MOS";
+	case ECOFF_SYMBOL_SCLASS_ARG:
+		return "C_ARG";
+	case ECOFF_SYMBOL_SCLASS_STRTAG:
+		return "C_STRTAG";
+	case ECOFF_SYMBOL_SCLASS_MOU:
+		return "C_MOU";
+	case ECOFF_SYMBOL_SCLASS_UNTAG:
+		return "C_UNTAG";
+	case ECOFF_SYMBOL_SCLASS_TPDEF:
+		return "C_TPDEF";
+	case ECOFF_SYMBOL_SCLASS_USTATIC:
+		return "C_USTATIC";
+	case ECOFF_SYMBOL_SCLASS_ENTAG:
+		return "C_ENTAG";
+	case ECOFF_SYMBOL_SCLASS_MOE:
+		return "C_MOE";
+	case ECOFF_SYMBOL_SCLASS_REGPARM:
+		return "C_REGPARM";
+	case ECOFF_SYMBOL_SCLASS_FIELD:
+		return "C_FIELD";
+	case ECOFF_SYMBOL_SCLASS_BLOCK:
+		return "C_BLOCK";
+	case ECOFF_SYMBOL_SCLASS_FCN:
+		return "C_FCN";
+	case ECOFF_SYMBOL_SCLASS_EOS:
+		return "C_EOS";
+	case ECOFF_SYMBOL_SCLASS_FILE:
+		return "C_FILE";
+	case ECOFF_SYMBOL_SCLASS_LINE:
+		return "C_LINE";
+	case ECOFF_SYMBOL_SCLASS_ALIAS:
+		return "C_ALIAS";
+	case ECOFF_SYMBOL_SCLASS_HIDDEN:
+		return "C_HIDDEN";
+	default:
+		rz_warn_if_reached();
+		return "unknown";
+	}
+}
+
+static bool ecoff_symbol_to_structure(const ECoff *ecoff, const ECoff_Symbol *symbol, RzStructuredData *parent) {
+	const char *e_scnum = "unknown";
+	const char *e_sclass = ecoff_symbol_sclass(symbol);
+
+	if (symbol->e_scnum == ECOFF_SYMBOL_SECT_NUM_DEBUG) {
+		// Special symbolic debugging symbol
+		e_scnum = "N_DEBUG";
+	} else if (symbol->e_scnum == ECOFF_SYMBOL_SECT_NUM_ABS) {
+		// Absolute symbol
+		e_scnum = "N_ABS";
+	} else if (symbol->e_scnum == ECOFF_SYMBOL_SECT_NUM_UNDEF) {
+		// Undefined external symbol
+		e_scnum = "N_UNDEF";
+	} else if (symbol->e_scnum > 0) {
+		const ECoff_Section *esec = rz_vector_index_ptr(ecoff->sections, symbol->e_scnum);
+		if (esec) {
+			e_scnum = esec->resolved_name;
+		}
+	}
+
+	return rz_structured_data_map_add_string(parent, "e_name", symbol->resolved_name) &&
+		rz_structured_data_map_add_unsigned(parent, "e_value", symbol->e_value, true) &&
+		rz_structured_data_map_add_string(parent, "e_scnum", e_scnum) &&
+		rz_structured_data_map_add_unsigned(parent, "e_type", symbol->e_type, true) &&
+		rz_structured_data_map_add_string(parent, "e_sclass", e_sclass) &&
+		rz_structured_data_map_add_unsigned(parent, "e_numaux", symbol->e_numaux, true);
+}
+
+static bool ecoff_symbols_to_structure(const ECoff *ecoff, RzStructuredData *parent) {
+	if (!parent) {
+		return false;
+	}
+	RzStructuredData *symbols = rz_structured_data_map_add_array(parent, "symbols");
+	if (!symbols) {
+		return false;
+	}
+
+	const ECoff_Symbol *symbol;
+	rz_vector_foreach (ecoff->symbols, symbol) {
+		RzStructuredData *section = rz_structured_data_array_add_map(symbols);
+		if (!section) {
+			return false;
+		} else if (!ecoff_symbol_to_structure(ecoff, symbol, section)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool ecoff_new_structure(const ECoff *ecoff, RzStructuredData *parent) {
 	return ecoff_header_to_structure(ecoff, parent) &&
 		ecoff_aouthdr_to_structure(ecoff, parent) &&
-		ecoff_sections_to_structure(ecoff, parent);
+		ecoff_sections_to_structure(ecoff, parent) &&
+		ecoff_symbols_to_structure(ecoff, parent);
 }
 
 RzList /*<char *>*/ *ecoff_resolve_section_flags(ut64 s_flags) {

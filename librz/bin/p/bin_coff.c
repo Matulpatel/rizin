@@ -58,7 +58,11 @@ static RzPVector /*<RzBinSection *>*/ *coff_sections(RzBinFile *bf) {
 }
 
 static RzPVector /*<RzBinSymbol *>*/ *coff_symbols(RzBinFile *bf) {
-	return NULL;
+	const CoffBin *coff_bin = (CoffBin *)bf->o->bin_obj;
+	if (!coff_bin) {
+		return NULL;
+	}
+	return coff_bin_get_symbols(coff_bin);
 }
 
 static RzPVector /*<RzBinImport *>*/ *coff_imports(RzBinFile *bf) {

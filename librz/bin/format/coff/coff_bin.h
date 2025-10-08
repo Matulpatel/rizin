@@ -16,6 +16,7 @@ RZ_OWN CoffBin *coff_bin_new_from_buffer(RZ_NONNULL RzBuffer *buffer);
 RZ_OWN RzPVector /*<RzBinAddr *>*/ *coff_bin_get_entries(RZ_NONNULL const CoffBin *coff_bin);
 RZ_OWN RzBinInfo *coff_bin_get_info(RZ_NONNULL const CoffBin *coff_bin);
 RZ_OWN RzPVector /*<RzBinSection *>*/ *coff_bin_get_sections(RZ_NONNULL const CoffBin *coff_bin);
+RZ_OWN RzPVector /*<RzBinSymbol *>*/ *coff_bin_get_symbols(RZ_NONNULL const CoffBin *coff_bin);
 RZ_OWN RzStructuredData *coff_bin_new_structure(RZ_NONNULL const CoffBin *coff_bin);
 RZ_OWN RzList /*<char *>*/ *coff_bin_resolve_section_flags(RZ_NONNULL const CoffBin *coff_bin, ut64 s_flags);
 
